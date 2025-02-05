@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import db from "../db.js";
 import { RegisterSchema, LoginSchema } from "../models/login.model.js";
 import { SECRET_KEY, SALT_ROUNDS } from "../config.js";
+import { z } from "zod";
 
 export const register = async (req, res) => {
   try {
@@ -63,22 +64,33 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    const parsedData = LoginSchema.parse(req.body);
+    const parsedData = LoginSchema.parse(req.body);  
     const { email, password } = parsedData;
 
     const query = `SELECT * FROM users WHERE email = ?`;
     const [user] = await db.query(query, [email]);
-
+    console.log(user);
     if (user.length === 0)
-      return res.status(401).json({ message: "Credenciales incorrectas." });
+      return res.status(401).json({ message: "Usuario no encontrado." });
 
     const validPassword = await bcrypt.compare(password, user[0].password);
     if (!validPassword)
       return res.status(401).json({ message: "Contraseña incorrecta." });
-
     const token = jwt.sign({ id: user[0].id }, SECRET_KEY, { expiresIn: "1h" });
     res.json({ token });
+    console.log(token);
   } catch (error) {
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        message: "Datos inválidos",
+        errors: error.errors.map((err) => ({
+          field: err.path[0],
+          message: err.message,
+        })),
+      });
+        
+    }
     res.status(500).json({ message: "Error al iniciar sesión" });
   }
 };
